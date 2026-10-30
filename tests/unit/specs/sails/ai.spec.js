@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import { orderBy } from 'lodash';
+import { Card } from '../../fixtures/Card';
+import MoveType from '../../../../utils/MoveType.json';
+import GamePhase from '../../../../utils/GamePhase.json';
+import { HAND_LIMIT } from '../../../../utils/GameConstants.json';
 import { mainPhase } from '../../fixtures/gameStates/ai/mainPhase';
 import { mainPhase2MinimaxPenalties } from '../../fixtures/gameStates/ai/minimax/mainPhase2MinimaxPenalties';
 import { mainPhase3AdditionalPenalties } from '../../fixtures/gameStates/ai/minimax/mainPhase3AdditionalPenalties';
@@ -77,6 +81,38 @@ describe('AI Move Validation', () => {
         expect(score).to.eq(mainPhase.minimaxScore);
       });
 
+    });
+  });
+
+  describe('getMoveBodiesForMoveType() for DISCARD_TO_HAND_LIMIT', () => {
+    // Two cards over the hand limit, whatever HAND_LIMIT is set to
+    const hand = Object.values(Card).slice(0, HAND_LIMIT + 2);
+    const gameState = {
+      p0: { hand, points: [], faceCards: [] },
+      p1: { hand: [], points: [], faceCards: [] },
+      deck: [],
+      scrap: [],
+      turn: 0,
+      phase: GamePhase.DISCARDING_TO_HAND_LIMIT,
+    };
+
+    it('creates a move body for every way to discard down to HAND_LIMIT', () => {
+      const moveBodies = getMoveBodiesForMoveType(gameState, 0, MoveType.DISCARD_TO_HAND_LIMIT);
+      // C(HAND_LIMIT + 2, 2) pairs of cards
+      expect(moveBodies).to.have.length((HAND_LIMIT + 2) * (HAND_LIMIT + 1) / 2);
+    });
+
+    it('only creates move bodies the server accepts', () => {
+      const { validate } = sails.helpers.gameStates.moves.discardToHandLimit;
+      const moveBodies = getMoveBodiesForMoveType(gameState, 0, MoveType.DISCARD_TO_HAND_LIMIT);
+      moveBodies.forEach((moveBody) => {
+        expect(() => validate(gameState, moveBody, 0, [])).not.to.throw();
+      });
+    });
+
+    it('creates no move bodies when the hand is at the limit', () => {
+      const atLimit = { ...gameState, p0: { ...gameState.p0, hand: hand.slice(0, HAND_LIMIT) } };
+      expect(getMoveBodiesForMoveType(atLimit, 0, MoveType.DISCARD_TO_HAND_LIMIT)).to.deep.eq([]);
     });
   });
 
